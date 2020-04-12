@@ -1,0 +1,622 @@
+/*
+tk_attributeControl.1.3.mel
+Thomas Kutschera
+nov 2017
+www.pixomondo.com
+*/
+
+
+proc cDefineClothListGlobals()
+{
+	global string $clothAttrPresetList[];
+	clear $clothAttrPresetList;
+
+	$clothAttrPresetList = {
+	" ", "collide",		
+	"selfCollide", "friction",			
+	"stretchResistance",
+	"compressionResistance", "bendResistance",
+	"inputMeshAttract", "inputAttractDamp",
+	"inputMotionDrag", "pointMass",
+	"lift", "drag",
+	"tangentialDrag", "inWorldMatrix",
+	"damp", "stretchDamp"
+	};
+}
+
+global proc cShrinkWin(string $windowToClose)
+{
+	window -e -h 20 $windowToClose;
+	window -e -w 420 $windowToClose;
+}
+
+global proc string cGetShapeName(string $type, string $attr)
+{
+	global string $shapeName;
+	$shapeName = ""; 
+	// print "\n cGetShapeName proc...";
+	// print "\n $type: ";
+	// print $type;
+	// print "\n $attr: ";
+	// print $attr;
+
+	$mySel = `ls -sl`;
+	
+	for ($obj in $mySel)
+	{
+		if (`attributeExists $attr $obj` == 1 && `objectType -isType $type $obj` == 1)
+		{
+			$shapeName = $obj;
+			return $shapeName;
+		}
+		else
+		{				
+			$shapes = `listRelatives -s $obj`;
+			
+			for ($s in $shapes)
+			{
+				if (`attributeExists $attr $s` == 1)
+				{
+					$shapeName = $s;
+					// print "\n $s: ";
+					// print $s;
+					return $shapeName;
+				}
+				else
+				{
+					$destinations = `listConnections -s 0 -type $type $s`;
+					for ($d in $destinations)
+					{
+						if (`attributeExists $attr $d` == 1)
+						{
+							$shapeName = $d;
+							// print "\n $d: ";
+							// print $d;
+						return $shapeName;
+						}
+						else 
+						{
+							$destShapes = `listRelatives -s $d`;
+							for ($allDestShape in $destShapes)
+							{
+								if (`attributeExists $attr $allDestShape` == 1)
+								{
+									$shapeName = $allDestShape;
+									return $shapeName;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return $shapeName;
+}
+
+proc cSetToInt(string $type, string $attr, int $state)
+{
+	global string $shapeName;
+	$mySel = `ls -sl`;
+	$startSel = $mySel;
+	
+	if ($attr == "renderSmoothLevel")
+		$state = `intField -q -v fRenderLevel`;	
+	if ($attr == "smoothLevel")
+		$state = `intField -q -v fSmoothLevel`;	
+	if ($attr == "aiSubdivIterations")
+		$state = `intField -q -v fAiIterations`;
+	if ($attr == "aiSamples")
+		$state = `intField -q -v fAiSamples`;	
+	if ($attr == "aiVolumeSamples")
+		$state = `intField -q -v fAiVolumeSamples`;
+
+
+		
+	
+	for ($obj in $mySel)
+	{
+		select -r $obj;
+		cGetShapeName($type, $attr);
+		// print "\n ### $shapeName: " ;
+		// print $shapeName;
+		if (`attributeExists $attr $shapeName` == 1)
+			setAttr ($shapeName + "." + $attr) $state;
+	}
+	select -r $startSel;
+}
+
+proc cSetToString(string $attr, string $content)
+{
+	$mySel = `ls -sl -l`;
+	$text = `textField -q -tx $content`;
+	
+	for ($obj in $mySel)
+	{
+		if (`attributeExists $attr $obj` == 1)
+		{
+			print ("\n" + $obj);
+			setAttr -type "string" ($obj + "." + $attr) $text;
+		}
+		else
+		{				
+			$shapes = `listRelatives -s $obj`;
+			for ($s in $shapes)
+			{
+				print ("\n" + $s);
+				setAttr -type "string" ($s + "." + $attr) $text;
+			}
+		}
+	}
+}
+
+proc cSetToFloat(string $attr, string $field)
+{
+	$mySel = `ls -sl -l`;
+	
+	$value = `floatField -q -v $field`;
+	
+	for ($obj in $mySel)
+	{
+		if (`attributeExists $attr $obj` == 1)
+			setAttr -type "string" ($obj + "." + $attr) $value;
+		else
+		{				
+			$shapes = `listRelatives -s $obj`;
+			for ($s in $shapes)
+			{
+				setAttr ($s + "." + $attr) $value;
+			}
+		}
+	}
+}
+
+proc cSetToEval(string $command, int $state)
+{
+	$mySel = `ls -sl`;
+	for ($obj in $mySel)
+	{
+		$cmd1 = " ";
+		$cmd2 = string($state);
+		$cmd = $command + $cmd1 + $cmd2; 
+		eval $cmd;
+	}
+}
+
+proc cAttrPresets()
+{
+	global string $clothAttrPresetList[];
+	$attrPreset = `optionMenu -q -select oAttrPresetsMenu`;
+	
+	if ($attrPreset == 1)
+	{
+		textField -e -tx $clothAttrPresetList[0] fClothAttribute;
+	}
+	
+	else 
+	{
+		textField -e -tx $clothAttrPresetList[int($attrPreset)-1] fClothAttribute;
+	}
+}
+
+proc cGetAttr(string $type, string $attr)
+{
+	global string $shapeName;
+	string $listAttr; 
+	// print "\n 1. get Particle shape name";
+	$mySel = `ls -sl`;
+	// print "\n $attr: ";
+	// print $attr;
+	cGetShapeName($type, $attr);
+	
+	$listAttr = `getAttr ($shapeName + "." + $attr)`;
+	textField -e -tx $listAttr tfNumeric;
+}
+
+proc cSetAttr(string $type, string $attr)
+{
+	global string $shapeName;
+	string $listAttr; 
+	$mySel = `ls -sl`;
+	cGetShapeName($type, $attr);
+	
+	$listAttr = `textField -q -tx tfNumeric`;
+	// print "\n $listAttr: ";
+	// print $listAttr;
+	// print "\n $attr: ";
+	// print $attr;
+	// print "\n $shapeName: ";
+	// print $shapeName;
+	setAttr -type "string" ($shapeName + "." + $attr) $listAttr;
+}
+
+proc cSelect(string $type, string $attr, int $state)
+{
+	global string $shapeName;
+	global string $newSel[];
+	string $parents[];
+	int $counter = 0;
+	clear $newSel;
+	$mySel = `ls -sl`;
+	// print "\n $mySel: ";
+	// print $mySel;
+	
+	for ($obj in $mySel)
+	{
+		select -r $obj;
+		cGetShapeName($type, $attr);
+		if (`attributeExists $attr $shapeName` == 1)
+		{
+			// print "\n $counter: ";
+			// print $counter;
+			// print "\n $shapeName: ";
+			// print $shapeName;
+			$newSel[$counter] = $shapeName;
+			$counter += 1;
+		}		
+	}		
+	
+	select -r $newSel;
+	// print "\n ------------------- \n $newSel: ";
+	// print $newSel;
+	
+	for ($s in $newSel)
+	{
+		$parents = `listRelatives -parent $s`;
+		for ($par in $parents)
+			setAttr ($par + ".visibility") $state;
+	}	
+}
+
+///////////////////// window ////////////////////////////
+global proc tk_attributeControl()
+{
+
+$ver = "v1.3";
+int $windowStartHeight = 50;
+int $windowStartWidth = 360;
+int $bh1 = 18;
+int $bh2 = 22;
+
+$nucEnable = 0;
+$nucStartFrame = 1;
+$nucSubstep = 4; 
+$nucCollSubstep = 3; 
+
+if( `window -exists win_tk_attributeControl` )
+	deleteUI win_tk_attributeControl;
+
+$myWindow = `window -title ("Attribute Control " + $ver) -s 1 -wh $windowStartHeight $windowStartWidth win_tk_attributeControl`;
+
+	/* -------------------- windowStart ------------------------- */
+
+	columnLayout -adj 1;
+	frameLayout -l "List Attributes" -cll 1 -cl 0 -bgc .2 .2 .2 -cc "cShrinkWin(\"win_tk_attributeControl\")" flMeshes; 
+	{
+		$form = `formLayout`;
+		tabLayout -innerMarginWidth 5 -innerMarginHeight 5 tTab1;
+		formLayout 
+			-edit -attachForm tTab1 "top"    0
+			-attachForm tTab1 "left"   0
+			-attachForm tTab1 "bottom" 0
+			-attachForm tTab1 "right"  0
+			$form;
+			
+		string $child4 = `rowColumnLayout -numberOfColumns 2`;
+		frameLayout -l "Particle Attributes" -cll 1 -cl 0 -cc "cShrinkWin(\"win_tk_attributeControl\")";
+		{
+			rowColumnLayout -nc 7 -cw 1 60 -cw 2 60 -cw 3 60 -cw 4 60 -cw 5 60 -cw 6 60 -cw 7 60;
+				text -h $bh1 -al "left" "Shading";
+				button -h $bh1 -l "Points" -bgc .3 .4 .3 -c "cSetToInt(\"particle\", \"particleRenderType\", 3); cSetToInt(\"nParticle\", \"particleRenderType\", 3)";
+				button -h $bh1 -l "M-Points" -bgc .4 .3 .3 -c "cSetToInt(\"particle\",\"particleRenderType\", 0); cSetToInt(\"nParticle\",\"particleRenderType\", 0)";
+				button -h $bh1 -l "Streak" -bgc .3 .4 .3 -c "cSetToInt(\"particle\",\"particleRenderType\", 6); cSetToInt(\"nParticle\",\"particleRenderType\", 6)";
+				button -h $bh1 -l "M-Streak" -bgc .4 .3 .3 -c "cSetToInt(\"particle\",\"particleRenderType\", 1); cSetToInt(\"nParticle\",\"particleRenderType\", 1)";
+				button -h $bh1 -l "Blob" -bgc .4 .3 .3 -c "cSetToInt(\"particle\",\"particleRenderType\", 7); cSetToInt(\"nParticle\",\"particleRenderType\", 7)";
+				button -h $bh1 -l "Sprite" -bgc .4 .3 .3 -c "cSetToInt(\"particle\",\"particleRenderType\", 5); cSetToInt(\"nParticle\",\"particleRenderType\", 5)";
+				setParent..;
+				
+			rowColumnLayout -nc 5 -cw 1 60 -cw 2 60 -cw 3 180 -cw 4 120;
+					text -h $bh1 -al "left" "Numeric";
+					button -h $bh1 -l "Read" -bgc .3 .4 .3 -c "cGetAttr(\"nParticle\", \"attributeName\"); cSetToInt(\"nParticle\", \"particleRenderType\", 2); cSetToInt(\"nParticle\", \"particleRenderType\", 2)";
+					textField -h $bh1 -tx "particleId" tfNumeric;
+					button -h $bh1 -l "Set" -bgc .4 .3 .3 -c "cSetAttr(\"nParticle\", \"attributeName\"); cSetToInt(\"nParticle\", \"particleRenderType\", 2); cSetToInt(\"nParticle\", \"particleRenderType\", 2)";
+									
+				setParent ..;
+			setParent ..;
+		}		
+		setParent ..;
+
+		string $child1 = `rowColumnLayout -numberOfColumns 2`;
+		frameLayout -l "Cloth Attributes" -cll 1 -cl 0 -cc "cShrinkWin(\"win_tk_attributeControl\")";
+		{
+			rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+				text -h $bh1 -al "left" "nCloth";
+				button -h $bh1 -l "Select and Visible" -bgc .3 .4 .3 -c "cSelect(\"nCloth\", \"thickness\", 1);";	
+				button -h $bh1 -l "Select and Hide" -bgc .4 .3 .3 -c "cSelect(\"nCloth\", \"thickness\", 0);";	
+				
+				text -h $bh1 -al "left" "Collision Thickness";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"nRigid\", \"solverDisplay\", 1); cSetToInt(\"nCloth\", \"solverDisplay\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"nRigid\", \"solverDisplay\", 0); cSetToInt(\"nCloth\", \"solverDisplay\", 0)";
+				
+				text -h $bh1 -al "left" "Self Collision Thickness";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"nCloth\", \"solverDisplay\", 2)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"nCloth\", \"solverDisplay\", 0)";
+				
+				setParent ..;
+			setParent ..;
+		}		
+		setParent ..;
+		
+		string $child2 = `columnLayout -adj 1`;
+		frameLayout -l "Mesh Preview" -cll 1 -cl 1 -cc "cShrinkWin(\"win_tk_attributeControl\")";
+		{
+			rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+				text -h $bh1 -al "left" "Smooth Mesh Preview";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToEval(\"setDisplaySmoothness\", 3)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToEval(\"setDisplaySmoothness\", 1)";
+				
+				text -h $bh1 -al "left" "Smooth Preview";
+				intField -h $bh1 -min 0 -max 5 -v 2 fSmoothLevel;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToInt(\"mesh\", \"smoothLevel\", 0)";	
+				
+				text -h $bh1 -al "left" "Use Smooth For Rendering";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\", \"useSmoothPreviewForRender\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\", \"useSmoothPreviewForRender\", 0)";					
+				
+				text -h $bh1 -al "left" "Render Level";
+				intField -h $bh1 -min 0 -max 5 -v 2 fRenderLevel;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToInt(\"mesh\", \"renderSmoothLevel\", 0)";			
+	
+
+				text -h $bh1 -al "left" "Visibility";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"transform\", \"visibility\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"transform\", \"visibility\", 0)";
+				
+				setParent ..;
+			setParent ..;
+		}
+		
+		frameLayout -l "Render Stats" -cll 1 -cl 1 -cc "cShrinkWin(\"win_tk_attributeControl\")";
+		{
+			rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+				text -h $bh1 -al "left" "Cast Shadows";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"castsShadows\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"castsShadows\", 0)";
+				
+				text -h $bh1 -al "left" "Receive Shadows";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"receiveShadows\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"receiveShadows\", 0)";
+				
+				text -h $bh1 -al "left" "Primary Visibility";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"primaryVisibility\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"primaryVisibility\", 0)";
+					
+				text -h $bh1 -al "left" "Visible Reflections";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"visibleInReflections\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"visibleInReflections\", 0)";
+				
+				text -h $bh1 -al "left" "Visible Refractions";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"visibleInRefractions\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"visibleInRefractions\", 0)";
+				
+				text -h $bh1 -al "left" "Double Sided";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"doubleSided\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"doubleSided\", 0)";	
+				
+				text -h $bh1 -al "left" "Holdout";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"holdOut\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"holdOut\", 0)";
+			
+				setParent ..;
+			setParent ..;
+		}
+		
+		frameLayout -l "Arnold Visibility" -cll 1 -cl 1 -cc "cShrinkWin(\"win_tk_attributeControl\")";
+		{
+			rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+				text -h $bh1 -al "left" "Opaque";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiOpaque\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiOpaque\", 0)";
+				
+				text -h $bh1 -al "left" "Matte";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiMatte\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiMatte\", 0)";
+					
+				text -h $bh1 -al "left" "Diffuse Reflection";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInDiffuseReflection\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInDiffuseReflection\", 0)";
+					
+				text -h $bh1 -al "left" "Specular Reflection";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInSpecularReflection\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInSpecularReflection\", 0)";
+					
+				text -h $bh1 -al "left" "Diffuse Transmission";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInDiffuseTransmission\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInDiffuseTransmission\", 0)";
+					
+				text -h $bh1 -al "left" "Specular Transmission";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInSpecularTransmission\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInSpecularTransmission\", 0)";
+				
+				text -h $bh1 -al "left" "Volume";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInVolume\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiVisibleInVolume\", 0)";
+				
+				text -h $bh1 -al "left" "Self Shadow";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiSelfShadows\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiSelfShadows\", 0)";	
+				
+				text -h $bh1 -al "left" "SSS Set Name";
+				textField -h $bh1 -tx " " tfSssSetName;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToString(\"aiSssSetname\", \"tfSssSetName\")";	
+			
+				setParent ..;
+			setParent ..;
+		}
+		
+		frameLayout -l "Arnold Subdivision" -cll 1 -cl 0 -cc "cShrinkWin(\"win_tk_attributeControl\")";
+		{
+			columnLayout -adj 1;
+				rowColumnLayout -nc 4 -cw 1 180 -cw 2 80 -cw 3 80 -cw 4 80;
+					text -h $bh1 -al "left" "Type";
+					button -h $bh1 -l "None" -c "cSetToInt(\"mesh\",\"aiSubdivType\", \"0\")";
+					button -h $bh1 -l "Linear" -c "cSetToInt(\"mesh\",\"aiSubdivType\", \"2\")";
+					button -h $bh1 -l "Catclark" -c "cSetToInt(\"mesh\",\"aiSubdivType\", \"1\")";
+					setParent..;
+				
+				rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+					text -h $bh1 -al "left" "Iterations";
+					intField -h $bh1 -min 0 -max 5 -v 2 fAiIterations;
+					button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToInt(\"mesh\",\"aiSubdivIterations\", 0)";			
+					setParent..;
+						
+				rowColumnLayout -nc 4 -cw 1 180 -cw 2 80 -cw 3 80 -cw 4 80;
+					text -h $bh1 -al "left" "Adaptive Metric";
+					button -h $bh1 -l "Auto" -c "cSetToInt(\"mesh\",\"aiSubdivAdaptiveMetric\", \"0\")";
+					button -h $bh1 -l "Auto" -c "cSetToInt(\"mesh\",\"aiSubdivAdaptiveMetric\", \"0\")";
+					button -h $bh1 -l "Edge Lenth" -c "cSetToInt(\"mesh\",\"aiSubdivAdaptiveMetric\", \"1\")";
+					button -h $bh1 -l "Flat" -c "cSetToInt(\"mesh\",\"aiSubdivAdaptiveMetric\", \"2\")";
+					setParent..;
+				
+				rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+					text -h $bh1 -al "left" "Adaptive Error";
+					floatField -h $bh1 -min 0.000 -v 0.000 fAiSubdivPixelError;
+					button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToFloat(\"aiSubdivPixelError\", \"fAiSubdivPixelError\")";			
+
+					text -h $bh1 -al "left" "Adaptive Space";
+					button -h $bh1 -l "Raster" -c "cSetToInt(\"mesh\",\"aiSubdivAdaptiveSpace\", 0)";
+					button -h $bh1 -l "Object" -c "cSetToInt(\"mesh\",\"aiSubdivAdaptiveSpace\", 1)";	
+					setParent..;
+				
+				rowColumnLayout -nc 5 -cw 1 180 -cw 2 60 -cw 3 60 -cw 4 60 -cw 5 60;
+					text -h $bh1 -al "left" "UV Smoothing";
+					button -h $bh1 -l "Corners" -c "cSetToInt(\"mesh\",\"aiSubdivUvSmoothing\", 0)";
+					button -h $bh1 -l "Borders" -c "cSetToInt(\"mesh\",\"aiSubdivUvSmoothing\", 1)";	
+					button -h $bh1 -l "Linear" -c "cSetToInt(\"mesh\",\"aiSubdivUvSmoothing\", 2)";
+					button -h $bh1 -l "Smooth" -c "cSetToInt(\"mesh\",\"aiSubdivUvSmoothing\", 3)";	
+					setParent..;
+				
+				rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+					text -h $bh1 -al "left" "Smooth Tangents";
+					button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiSubdivSmoothDerivs\", 1)";
+					button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiSubdivSmoothDerivs\", 0)";	
+				
+					setParent ..;
+				setParent ..;
+			setParent ..;
+		}
+		
+		frameLayout -l "Arnold Displacement" -cll 1 -cl 1 -cc "cShrinkWin(\"win_tk_attributeControl\")";
+		{
+			rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+				
+				text -h $bh1 -al "left" "Height";
+				floatField -h $bh1 -min 0.000 -v 0.000 fAiDispHeight;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToFloat(\"aiDispHeight\", \"fAiDispHeight\")";			
+				
+				text -h $bh1 -al "left" "Padding";
+				floatField -h $bh1 -min 0.000 -v 0.000 fAiDispPadding;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToFloat(\"aiDispPadding\", \"fAiDispPadding\")";			
+				
+				text -h $bh1 -al "left" "Zero Value";
+				floatField -h $bh1 -min 0.000 -v 0.000 fAiDispZeroValue;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToFloat(\"aiDispZeroValue\", \"fAiDispZeroValue\")";			
+								
+				text -h $bh1 -al "left" "Auto Bump";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiDispAutobump\", 1)";	
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiDispAutobump\", 0)";	
+			
+				setParent ..;
+			setParent ..;
+		}
+		setParent ..;
+
+		string $child9 = `columnLayout -adj 1`;
+		
+		frameLayout -l "Visibility" -cll 1 -cl 0 -cc "cShrinkWin(\"win_tk_attributeControl\")";
+		{
+			columnLayout -adj 1;
+			rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+				text -h $bh1 -al "left" "Visible To Camera";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiCamera\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiCamera\", 0)";	
+
+				text -h $bh1 -al "left" "Transmission";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiTransmission\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiTransmission\", 0)";
+									
+				text -h $bh1 -al "left" "Diffuse";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiDiffuse\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiDiffuse\", 0)";
+									
+				text -h $bh1 -al "left" "Specular";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiSpecular\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiSpecular\", 0)";
+									
+				text -h $bh1 -al "left" "SSS";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiSss\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiSss\", 0)";
+									
+				text -h $bh1 -al "left" "indirect";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiIndirect\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiIndirect\", 0)";
+									
+				text -h $bh1 -al "left" "Volume";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiVolume\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiVolume\", 0)";
+									
+				setParent ..;
+			setParent ..;
+		setParent ..;
+		}	
+
+		frameLayout -l "Arnold" -cll 1 -cl 0 -cc "cShrinkWin(\"win_tk_attributeControl\")";
+		{
+			rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+				text -h $bh1 -al "left" "Exposure";
+				floatField -h $bh1 -min 0.000 -v 0.000 fAiExposure;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToFloat(\"aiExposure\", \"fAiExposure\")";	
+			
+				text -h $bh1 -al "left" "Samples";
+				intField -h $bh1 -min 0 -v 2 fAiSamples;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToInt(\"mesh\",\"aiSamples\", 0)";
+
+				text -h $bh1 -al "left" "Volume Samples";
+				intField -h $bh1 -min 0 -v 2 fAiVolumeSamples;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToInt(\"mesh\",\"aiVolumeSamples\", 0)";			
+
+				text -h $bh1 -al "left" "Radius";
+				floatField -h $bh1 -min 0.000 -v 1 fAiRadius;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToFloat(\"aiRadius\", \"fAiRadius\")";	
+
+				text -h $bh1 -al "left" "Light Spread";
+				floatField -h $bh1 -min 0.000 -max 1 -v 1 fAiSpread;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToFloat(\"aiSpread\", \"fAiSpread\")";	
+				setParent..;
+
+			rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
+				text -h $bh1 -al "left" "Cast Shadows";
+				button -h $bh1 -l "On" -bgc .3 .4 .3 -c "cSetToInt(\"mesh\",\"aiCastShadows\", 1)";
+				button -h $bh1 -l "Off" -bgc .4 .3 .3 -c "cSetToInt(\"mesh\",\"aiCastShadows\", 0)";
+
+				text -h $bh1 -al "left" "Light Group Name";
+				textField -h $bh1 -tx " " tfAiAov;
+				button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToString(\"aiAov\", \"tfAiAov\")";	
+
+
+
+				setParent ..;
+			setParent ..;
+		}
+
+		tabLayout -edit -tabLabel $child4 "Particles" -tabLabel $child1 "Cloth" -tabLabel $child2 "Meshes" -tabLabel $child9 "Lights" tTab1;
+		tabLayout -e -st $child9 tTab1;
+	}
+	setParent ..;
+
+	showWindow $myWindow;
+	cShrinkWin("win_tk_attributeControl");
+}
+
+tk_attributeControl();
+	
