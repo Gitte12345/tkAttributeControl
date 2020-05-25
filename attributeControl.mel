@@ -466,7 +466,7 @@ $myWindow = `window -title ("Attribute Control " + $ver) -s 1 -wh $windowStartHe
 				
 				rowColumnLayout -nc 3 -cw 1 180 -cw 2 120 -cw 3 120;
 					text -h $bh1 -al "left" "Iterations";
-					intField -h $bh1 -min 0 -max 5 -v 2 fAiIterations;
+					intField -h $bh1 -min 0 -max 9 -v 2 fAiIterations;
 					button -h $bh1 -l "Set" -bgc .25 .3 .4 -c "cSetToInt(\"mesh\",\"aiSubdivIterations\", 0)";			
 					setParent..;
 						
